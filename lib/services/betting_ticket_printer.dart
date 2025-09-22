@@ -9,6 +9,32 @@ class BettingTicketPrinter {
   BettingTicketPrinter._internal();
 
   final BluetoothService _bluetoothService = BluetoothService();
+  final BettingApiService _apiService = BettingApiService();
+
+  // Send data with retry logic
+  Future<bool> _sendDataWithRetry(Uint8List data, {int maxRetries = 3}) async {
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        final success = await _bluetoothService.sendData(data);
+        if (success) {
+          return true;
+        }
+        
+        if (attempt < maxRetries) {
+          print('Print attempt $attempt failed, retrying...');
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+        }
+      } catch (e) {
+        print('Print attempt $attempt error: $e');
+        if (attempt < maxRetries) {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+        }
+      }
+    }
+    
+    print('All print attempts failed');
+    return false;
+  }
 
   // Print a betting ticket
   Future<bool> printBettingTicket(BettingTicket ticket) async {
@@ -22,24 +48,26 @@ class BettingTicketPrinter {
       bytes += generator.reset();
       bytes += generator.setGlobalFont(PosFontType.fontA);
       
-      // Header
-      bytes += generator.text('Ticket Receipt');
+      // Header with better formatting
+      bytes += generator.text('TICKET RECEIPT', styles: PosStyles(align: PosAlign.center, bold: true));
       bytes += generator.feed(1);
-      bytes += generator.text('ID: ${ticket.id}');
+      bytes += generator.text('ID: ${ticket.id}', styles: PosStyles(align: PosAlign.center));
       bytes += generator.feed(1);
       bytes += generator.hr();
       bytes += generator.feed(1);
 
-      // Event Details
-      bytes += generator.text('Event: ${ticket.event} (Schedule #${ticket.scheduleNumber})');
+      // Event Details with better formatting
+      bytes += generator.text('Event: ${ticket.event}', styles: PosStyles(bold: true));
+      bytes += generator.feed(1);
+      bytes += generator.text('Schedule #${ticket.scheduleNumber}');
       bytes += generator.feed(1);
       bytes += generator.text('Draw Time: ${ticket.drawTime}');
       bytes += generator.feed(1);
       bytes += generator.hr();
       bytes += generator.feed(1);
 
-      // Bet Details
-      bytes += generator.text('Bet Details:');
+      // Bet Details with better formatting
+      bytes += generator.text('BET DETAILS:', styles: PosStyles(bold: true));
       bytes += generator.feed(1);
       bytes += generator.text('${ticket.betType}: \$${ticket.betAmount.toStringAsFixed(2)}');
       bytes += generator.feed(1);
@@ -48,20 +76,34 @@ class BettingTicketPrinter {
       bytes += generator.hr();
       bytes += generator.feed(1);
 
-      // Financial Summary
+      // Financial Summary with better formatting
+      bytes += generator.text('FINANCIAL SUMMARY:', styles: PosStyles(bold: true));
+      bytes += generator.feed(1);
       bytes += generator.text('Gross Amount: \$${ticket.grossAmount.toStringAsFixed(2)}');
       bytes += generator.feed(1);
       bytes += generator.text('TAX: \$${ticket.tax.toStringAsFixed(2)}');
       bytes += generator.feed(1);
-      bytes += generator.text('Net Amount: \$${ticket.netAmount.toStringAsFixed(2)}');
+      bytes += generator.text('Net Amount: \$${ticket.netAmount.toStringAsFixed(2)}', 
+          styles: PosStyles(bold: true, underline: true));
       bytes += generator.feed(2);
 
-      // Footer
-      bytes += generator.text('Thank you for betting!');
+      // Footer with timestamp
+      bytes += generator.text('Thank you for betting!', styles: PosStyles(align: PosAlign.center));
+      bytes += generator.feed(1);
+      bytes += generator.text('Printed: ${DateTime.now().toString().substring(0, 19)}', 
+          styles: PosStyles(align: PosAlign.center));
       bytes += generator.feed(2);
       bytes += generator.cut();
 
-      return await _bluetoothService.sendData(Uint8List.fromList(bytes));
+      // Send data with retry logic
+      final success = await _sendDataWithRetry(Uint8List.fromList(bytes));
+      
+      // Mark ticket as printed if successful
+      if (success) {
+        await _apiService.markTicketAsPrinted(ticket.id);
+      }
+      
+      return success;
     } catch (e) {
       print('Print betting ticket error: $e');
       return false;
@@ -125,7 +167,7 @@ class BettingTicketPrinter {
       bytes += generator.feed(2);
       bytes += generator.cut();
 
-      return await _bluetoothService.sendData(Uint8List.fromList(bytes));
+      return await _sendDataWithRetry(Uint8List.fromList(bytes));
     } catch (e) {
       print('Test betting ticket print error: $e');
       return false;

@@ -6,6 +6,8 @@ import '../services/betting_ticket_printer.dart';
 import '../services/betting_api_service.dart';
 import '../widgets/device_list_tile.dart';
 import 'betting_login_screen.dart';
+import 'machine_config_screen.dart';
+import 'printer_config_screen.dart';
 
 class BettingHomeScreen extends StatefulWidget {
   const BettingHomeScreen({super.key});
@@ -27,13 +29,21 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
   
   // Betting ticket state
   List<BettingTicket> _todaysTickets = [];
+  List<BettingTicket> _pendingTickets = [];
   bool _isLoadingTickets = false;
+  bool _isLoadingPendingTickets = false;
+  
+  // Machine status
+  Map<String, dynamic>? _machineStatus;
+  bool _isLoadingMachineStatus = false;
+  String? _currentMachineName;
 
   @override
   void initState() {
     super.initState();
     _checkBluetoothStatus();
     _loadBondedDevices();
+    _loadMachineConfig();
   }
 
   Future<void> _checkBluetoothStatus() async {
@@ -48,6 +58,66 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
     setState(() {
       _devices = devices;
     });
+  }
+
+  Future<void> _loadMachineConfig() async {
+    final config = await _apiService.loadMachineConfig();
+    setState(() {
+      _currentMachineName = config['name'];
+    });
+    
+    // Set the endpoint if config exists
+    if (config['baseUrl'] != null) {
+      _apiService.setMachineEndpoint(
+        config['baseUrl']!,
+        config['machineId'],
+      );
+    }
+  }
+
+  Future<void> _openMachineConfig() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MachineConfigScreen()),
+    );
+    
+    if (result == true) {
+      // Config was saved, reload it
+      await _loadMachineConfig();
+      _showSnackBar('Machine configuration updated');
+    }
+  }
+
+  Future<void> _openPrinterConfig() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrinterConfigScreen()),
+    );
+  }
+
+  Future<void> _checkMachineStatus() async {
+    setState(() {
+      _isLoadingMachineStatus = true;
+    });
+
+    try {
+      final status = await _apiService.getMachineStatus();
+      setState(() {
+        _machineStatus = status;
+      });
+      
+      if (status != null) {
+        _showSnackBar('Machine status updated');
+      } else {
+        _showSnackBar('Failed to get machine status');
+      }
+    } catch (e) {
+      _showSnackBar('Error checking machine status: $e');
+    } finally {
+      setState(() {
+        _isLoadingMachineStatus = false;
+      });
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -153,6 +223,64 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
     }
   }
 
+  Future<void> _loadPendingTickets() async {
+    setState(() {
+      _isLoadingPendingTickets = true;
+    });
+
+    try {
+      final tickets = await _apiService.getPendingTickets();
+      setState(() {
+        _pendingTickets = tickets;
+      });
+      
+      if (tickets.isNotEmpty) {
+        _showSnackBar('Found ${tickets.length} pending tickets');
+      } else {
+        _showSnackBar('No pending tickets found');
+      }
+    } catch (e) {
+      _showSnackBar('Failed to load pending tickets: $e');
+    } finally {
+      setState(() {
+        _isLoadingPendingTickets = false;
+      });
+    }
+  }
+
+  Future<void> _printAllPendingTickets() async {
+    if (!_isConnected) {
+      _showSnackBar('Please connect to a printer first');
+      return;
+    }
+
+    if (_pendingTickets.isEmpty) {
+      await _loadPendingTickets();
+      if (_pendingTickets.isEmpty) {
+        _showSnackBar('No pending tickets to print');
+        return;
+      }
+    }
+
+    _showSnackBar('Printing ${_pendingTickets.length} pending tickets...');
+    
+    int successCount = 0;
+    for (BettingTicket ticket in _pendingTickets) {
+      final success = await _ticketPrinter.printBettingTicket(ticket);
+      if (success) {
+        successCount++;
+      }
+      
+      // Small delay between tickets
+      await Future.delayed(const Duration(milliseconds: 1000));
+    }
+    
+    _showSnackBar('Successfully printed $successCount of ${_pendingTickets.length} tickets');
+    
+    // Reload pending tickets to see updated list
+    await _loadPendingTickets();
+  }
+
   Future<void> _printAllTickets() async {
     if (!_isConnected) {
       _showSnackBar('Please connect to a printer first');
@@ -210,6 +338,16 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _openMachineConfig,
+            tooltip: 'Machine Configuration',
+          ),
+          IconButton(
+            icon: const Icon(Icons.print),
+            onPressed: _openPrinterConfig,
+            tooltip: 'Printer Configuration',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadTodaysTickets,
             tooltip: 'Refresh Tickets',
@@ -226,18 +364,56 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Connection Status Card
+            // Machine Status Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Connection Status',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      children: [
+                        Text(
+                          'Machine Status',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.settings),
+                          onPressed: _openMachineConfig,
+                          tooltip: 'Configure Machine',
+                        ),
+                        IconButton(
+                          icon: _isLoadingMachineStatus 
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.refresh),
+                          onPressed: _isLoadingMachineStatus ? null : _checkMachineStatus,
+                          tooltip: 'Check Machine Status',
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
+                    if (_currentMachineName != null) ...[
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.casino,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _currentMachineName!,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         Icon(
@@ -271,6 +447,36 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                    if (_machineStatus != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Machine Online',
+                                style: TextStyle(
+                                  color: Colors.green[800],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -355,30 +561,76 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
               ),
               const SizedBox(height: 8),
               
-              // Load tickets button
-              ElevatedButton.icon(
-                onPressed: _isLoadingTickets ? null : _loadTodaysTickets,
-                icon: _isLoadingTickets 
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.download),
-                label: Text(_isLoadingTickets ? 'Loading...' : 'Load Today\'s Betting Tickets'),
+              // Load tickets buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoadingTickets ? null : _loadTodaysTickets,
+                      icon: _isLoadingTickets 
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download),
+                      label: Text(_isLoadingTickets ? 'Loading...' : 'Load Today\'s Tickets'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoadingPendingTickets ? null : _loadPendingTickets,
+                      icon: _isLoadingPendingTickets 
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.pending_actions),
+                      label: Text(_isLoadingPendingTickets ? 'Loading...' : 'Load Pending'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               
-              // Print all tickets button
-              if (_todaysTickets.isNotEmpty) ...[
-                ElevatedButton.icon(
-                  onPressed: _printAllTickets,
-                  icon: const Icon(Icons.print),
-                  label: Text('Print All Betting Tickets (${_todaysTickets.length})'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
+              // Print all tickets buttons
+              if (_todaysTickets.isNotEmpty || _pendingTickets.isNotEmpty) ...[
+                Row(
+                  children: [
+                    if (_todaysTickets.isNotEmpty) ...[
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _printAllTickets,
+                          icon: const Icon(Icons.print),
+                          label: Text('Print Today\'s (${_todaysTickets.length})'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      if (_pendingTickets.isNotEmpty) const SizedBox(width: 8),
+                    ],
+                    if (_pendingTickets.isNotEmpty) ...[
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _printAllPendingTickets,
+                          icon: const Icon(Icons.print_outlined),
+                          label: Text('Print Pending (${_pendingTickets.length})'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 8),
               ],
