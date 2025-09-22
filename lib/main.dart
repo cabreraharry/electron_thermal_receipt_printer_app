@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'screens/betting_login_screen.dart';
 
 void main() {
-  runApp(const ThermalPrinterApp());
+  runApp(const BettingTicketApp());
 }
 
-class ThermalPrinterApp extends StatelessWidget {
-  const ThermalPrinterApp({super.key});
+class BettingTicketApp extends StatelessWidget {
+  const BettingTicketApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Thermal Printer App',
+      title: 'Betting Ticket Printer',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const BettingLoginScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
