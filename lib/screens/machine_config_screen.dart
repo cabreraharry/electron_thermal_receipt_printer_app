@@ -13,16 +13,15 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
   final _nameController = TextEditingController();
   final _baseUrlController = TextEditingController();
   final _machineIdController = TextEditingController();
-  
   final BettingApiService _apiService = BettingApiService();
+  
   bool _isLoading = false;
-  bool _isTestingConnection = false;
-  String? _connectionStatus;
+  bool _isTesting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentConfig();
+    _loadConfiguration();
   }
 
   @override
@@ -33,45 +32,41 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCurrentConfig() async {
+  Future<void> _loadConfiguration() async {
     final config = await _apiService.loadMachineConfig();
     setState(() {
       _nameController.text = config['name'] ?? '';
-      _baseUrlController.text = config['baseUrl'] ?? 'https://api.win67game.com/api';
+      _baseUrlController.text = config['baseUrl'] ?? '';
       _machineIdController.text = config['machineId'] ?? '';
     });
   }
 
   Future<void> _testConnection() async {
-    if (_baseUrlController.text.isEmpty) {
-      _showSnackBar('Please enter a base URL');
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
-      _isTestingConnection = true;
-      _connectionStatus = null;
+      _isTesting = true;
     });
 
-    try {
-      // Temporarily set the endpoint for testing
-      _apiService.setMachineEndpoint(_baseUrlController.text.trim(), _machineIdController.text.trim().isEmpty ? null : _machineIdController.text.trim());
-      
-      final isConnected = await _apiService.testConnection();
-      setState(() {
-        _connectionStatus = isConnected ? 'Connected successfully!' : 'Connection failed';
-      });
-      
-      _showSnackBar(_connectionStatus!);
-    } catch (e) {
-      setState(() {
-        _connectionStatus = 'Connection test failed: $e';
-      });
-      _showSnackBar(_connectionStatus!);
-    } finally {
-      setState(() {
-        _isTestingConnection = false;
-      });
+    // Temporarily set the endpoint for testing
+    _apiService.setMachineEndpoint(
+      _baseUrlController.text.trim(),
+      _machineIdController.text.trim().isEmpty ? null : _machineIdController.text.trim(),
+    );
+
+    final success = await _apiService.testConnection();
+
+    setState(() {
+      _isTesting = false;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Connection successful!' : 'Connection failed'),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
     }
   }
 
@@ -89,19 +84,32 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
         _machineIdController.text.trim().isEmpty ? null : _machineIdController.text.trim(),
       );
 
-      // Update the current endpoint
+      // Set the endpoint
       _apiService.setMachineEndpoint(
         _baseUrlController.text.trim(),
         _machineIdController.text.trim().isEmpty ? null : _machineIdController.text.trim(),
       );
 
-      _showSnackBar('Machine configuration saved successfully!');
-      
       if (mounted) {
-        Navigator.pop(context, true); // Return true to indicate config was saved
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Configuration saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Return true to indicate success
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      _showSnackBar('Failed to save configuration: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save configuration: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -109,18 +117,13 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Machine Configuration'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -129,31 +132,61 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.settings,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Betting Machine Setup',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
                       Text(
-                        'Configure your betting machine connection settings',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
+                        'Betting Machine Details',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Machine Name',
+                          prefixIcon: Icon(Icons.casino),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a machine name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: _baseUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'API Base URL',
+                          prefixIcon: Icon(Icons.link),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.url,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter the API base URL';
+                          }
+                          final uri = Uri.tryParse(value.trim());
+                          if (uri == null || !uri.hasAbsolutePath) {
+                            return 'Please enter a valid URL';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: _machineIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Machine ID (Optional)',
+                          prefixIcon: Icon(Icons.tag),
+                          border: OutlineInputBorder(),
                         ),
                       ),
                     ],
@@ -163,186 +196,80 @@ class _MachineConfigScreenState extends State<MachineConfigScreen> {
               
               const SizedBox(height: 16),
               
-              // Machine Name
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Machine Name',
-                  hintText: 'e.g., Main Betting Terminal',
-                  prefixIcon: Icon(Icons.casino),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a machine name';
-                  }
-                  return null;
-                },
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Base URL
-              TextFormField(
-                controller: _baseUrlController,
-                decoration: const InputDecoration(
-                  labelText: 'API Base URL',
-                  hintText: 'https://api.win67game.com/api',
-                  prefixIcon: Icon(Icons.link),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.url,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter the API base URL';
-                  }
-                  final uri = Uri.tryParse(value.trim());
-                  if (uri == null || !uri.hasAbsolutePath) {
-                    return 'Please enter a valid URL';
-                  }
-                  return null;
-                },
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Machine ID (Optional)
-              TextFormField(
-                controller: _machineIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Machine ID (Optional)',
-                  hintText: 'Unique identifier for this machine',
-                  prefixIcon: Icon(Icons.tag),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Connection Test
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: _isTestingConnection ? null : _testConnection,
-                      icon: _isTestingConnection
+                      onPressed: _isTesting ? null : _testConnection,
+                      icon: _isTesting 
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.wifi_tethering),
-                      label: Text(_isTestingConnection ? 'Testing...' : 'Test Connection'),
+                      label: Text(_isTesting ? 'Testing...' : 'Test Connection'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _saveConfiguration,
+                      icon: _isLoading 
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save),
+                      label: Text(_isLoading ? 'Saving...' : 'Save Configuration'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
                 ],
               ),
               
-              if (_connectionStatus != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _connectionStatus!.contains('successfully')
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _connectionStatus!.contains('successfully')
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _connectionStatus!.contains('successfully')
-                            ? Icons.check_circle
-                            : Icons.error,
-                        color: _connectionStatus!.contains('successfully')
-                            ? Colors.green
-                            : Colors.red,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _connectionStatus!,
-                          style: TextStyle(
-                            color: _connectionStatus!.contains('successfully')
-                                ? Colors.green[800]
-                                : Colors.red[800],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              
               const SizedBox(height: 24),
               
-              // Save Button
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveConfiguration,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: Text(_isLoading ? 'Saving...' : 'Save Configuration'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
                 ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Info Card
-              Card(
-                color: Colors.blue.withOpacity(0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue[700]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Configuration Help',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
                             color: Colors.blue[700],
-                            size: 20,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Configuration Tips',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• Test the connection before saving\n'
-                        '• Machine ID is optional but recommended for multi-machine setups\n'
-                        '• Make sure the API URL is accessible from your network\n'
-                        '• Contact your betting system administrator for the correct endpoints',
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 12,
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enter the betting system API URL provided by your system administrator. '
+                      'The Machine ID is optional and used for tracking purposes.',
+                      style: TextStyle(color: Colors.blue[600]),
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -88,13 +88,6 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
     }
   }
 
-  Future<void> _openPrinterConfig() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const PrinterConfigScreen()),
-    );
-  }
-
   Future<void> _checkMachineStatus() async {
     setState(() {
       _isLoadingMachineStatus = true;
@@ -119,6 +112,14 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
       });
     }
   }
+
+  Future<void> _openPrinterConfig() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrinterConfigScreen()),
+    );
+  }
+
 
   Future<void> _requestPermissions() async {
     await Permission.bluetooth.request();
@@ -330,226 +331,426 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
     );
   }
 
+  Widget _buildStatusChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isActive,
+    bool fullWidth = false,
+  }) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isActive ? color.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive ? color.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: isActive ? color : Colors.grey,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isActive ? color : Colors.grey,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Betting Ticket Printer'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('Betting Terminal'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _openMachineConfig,
-            tooltip: 'Machine Configuration',
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: IconButton(
+              icon: const Icon(Icons.casino),
+              onPressed: _openMachineConfig,
+              tooltip: 'Machine Configuration',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: _openPrinterConfig,
-            tooltip: 'Printer Configuration',
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: IconButton(
+              icon: const Icon(Icons.print_outlined),
+              onPressed: _openPrinterConfig,
+              tooltip: 'Printer Configuration',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTodaysTickets,
-            tooltip: 'Refresh Tickets',
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: IconButton(
+              icon: const Icon(Icons.refresh_outlined),
+              onPressed: _loadTodaysTickets,
+              tooltip: 'Refresh Tickets',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Logout',
+          Container(
+            margin: const EdgeInsets.only(right: 8, left: 4),
+            child: IconButton(
+              icon: const Icon(Icons.logout_outlined),
+              onPressed: _logout,
+              tooltip: 'Logout',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Machine Status Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Machine Status',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.settings),
-                          onPressed: _openMachineConfig,
-                          tooltip: 'Configure Machine',
-                        ),
-                        IconButton(
-                          icon: _isLoadingMachineStatus 
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.refresh),
-                          onPressed: _isLoadingMachineStatus ? null : _checkMachineStatus,
-                          tooltip: 'Check Machine Status',
-                        ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Connection Status Card
+              Card(
+                elevation: 8,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        Theme.of(context).colorScheme.secondary.withOpacity(0.05),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    if (_currentMachineName != null) ...[
+                  ),
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Row(
                         children: [
-                          Icon(
-                            Icons.casino,
-                            color: Theme.of(context).primaryColor,
-                            size: 20,
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.print_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _currentMachineName!,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    Row(
-                      children: [
-                        Icon(
-                          _isBluetoothEnabled ? Icons.bluetooth : Icons.bluetooth_disabled,
-                          color: _isBluetoothEnabled ? Colors.blue : Colors.grey,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isBluetoothEnabled ? 'Bluetooth Enabled' : 'Bluetooth Disabled',
-                          style: TextStyle(
-                            color: _isBluetoothEnabled ? Colors.blue : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_selectedDevice != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            _isConnected ? Icons.check_circle : Icons.cancel,
-                            color: _isConnected ? Colors.green : Colors.red,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _isConnected 
-                                ? 'Connected to ${_selectedDevice!.platformName.isNotEmpty ? _selectedDevice!.platformName : _selectedDevice!.remoteId.toString()}'
-                                : 'Disconnected',
-                            style: TextStyle(
-                              color: _isConnected ? Colors.green : Colors.red,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(
+                              'Machine Status',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            Text(
+                              _currentMachineName ?? 'Not configured',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ],
-                    if (_machineStatus != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.green),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 16,
+                      const SizedBox(height: 20),
+                      
+                      // Status Indicators
+                      Row(
+                        children: [
+                          // Bluetooth Status
+                          Expanded(
+                            child: _buildStatusChip(
+                              icon: _isBluetoothEnabled ? Icons.bluetooth : Icons.bluetooth_disabled,
+                              label: _isBluetoothEnabled ? 'Bluetooth' : 'BT Disabled',
+                              color: _isBluetoothEnabled ? Colors.blue : Colors.grey,
+                              isActive: _isBluetoothEnabled,
                             ),
-                            const SizedBox(width: 8),
+                          ),
+                          
+                          if (_selectedDevice != null) ...[
+                            const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                'Machine Online',
-                                style: TextStyle(
-                                  color: Colors.green[800],
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              child: _buildStatusChip(
+                                icon: _isConnected ? Icons.print : Icons.print_disabled,
+                                label: _isConnected ? 'Connected' : 'Disconnected',
+                                color: _isConnected ? Colors.green : Colors.red,
+                                isActive: _isConnected,
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                    ],
                   ],
                 ),
               ),
             ),
             
-            const SizedBox(height: 16),
-            
-            // Bluetooth Controls
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isBluetoothEnabled ? null : _enableBluetooth,
-                    icon: const Icon(Icons.bluetooth),
-                    label: const Text('Enable Bluetooth'),
-                  ),
+              const SizedBox(height: 20),
+              
+              // Bluetooth Controls Card
+              Card(
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isBluetoothEnabled && !_isScanning ? _startScanning : null,
-                    icon: _isScanning 
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.search),
-                    label: Text(_isScanning ? 'Scanning...' : 'Scan Devices'),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Device List
-            Text(
-              'Available Devices',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _devices.isEmpty
-                  ? Center(
-                      child: Text(
-                        _isScanning 
-                            ? 'Scanning for devices...'
-                            : 'No devices found. Tap "Scan Devices" to search.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey,
-                        ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.bluetooth_outlined,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Printer Connection',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Connect to thermal printer',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: _devices.length,
-                      itemBuilder: (context, index) {
-                        final device = _devices[index];
-                        final isSelected = _selectedDevice?.remoteId == device.remoteId;
-                        final isConnected = isSelected && _isConnected;
-                        
-                        return DeviceListTile(
-                          device: device,
-                          isSelected: isSelected,
-                          isConnected: isConnected,
-                          onTap: () => _connectToDevice(device),
-                          onDisconnect: _disconnect,
-                        );
-                      },
-                    ),
-            ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isBluetoothEnabled ? null : _enableBluetooth,
+                              icon: const Icon(Icons.bluetooth, size: 18),
+                              label: const Text('Enable BT'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isBluetoothEnabled ? Colors.grey : Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isBluetoothEnabled && !_isScanning ? _startScanning : null,
+                              icon: _isScanning 
+                                  ? SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.search, size: 18),
+                              label: Text(_isScanning ? 'Scanning...' : 'Scan Devices'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).colorScheme.secondary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            
+              const SizedBox(height: 20),
+              
+              // Device List Card
+              Card(
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.devices_outlined,
+                              color: Colors.green,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Available Devices',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Select thermal printer',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: _devices.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _isScanning ? Icons.search : Icons.bluetooth_disabled,
+                                        size: 48,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _isScanning 
+                                            ? 'Scanning for devices...'
+                                            : 'No devices found',
+                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (!_isScanning) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Tap "Scan Devices" to search',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _devices.length,
+                                itemBuilder: (context, index) {
+                                  final device = _devices[index];
+                                  final isSelected = _selectedDevice?.remoteId == device.remoteId;
+                                  final isConnected = isSelected && _isConnected;
+                                  
+                                  return DeviceListTile(
+                                    device: device,
+                                    isSelected: isSelected,
+                                    isConnected: isConnected,
+                                    onTap: () => _connectToDevice(device),
+                                    onDisconnect: _disconnect,
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             
             const SizedBox(height: 16),
             
@@ -649,37 +850,110 @@ class _BettingHomeScreenState extends State<BettingHomeScreen> {
             
             // Tickets List
             if (_todaysTickets.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Today\'s Betting Tickets (${_todaysTickets.length})',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _todaysTickets.length,
-                  itemBuilder: (context, index) {
-                    final ticket = _todaysTickets[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        leading: const Icon(Icons.casino),
-                        title: Text('Ticket ${ticket.id}'),
-                        subtitle: Text('${ticket.event} - \$${ticket.netAmount.toStringAsFixed(2)}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.print),
-                          onPressed: () => _printSingleTicket(ticket),
-                          tooltip: 'Print this betting ticket',
+              const SizedBox(height: 20),
+              Card(
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.receipt_long_outlined,
+                              color: Colors.purple,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Today\'s Betting Tickets',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '${_todaysTickets.length} tickets available',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 300),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _todaysTickets.length,
+                          itemBuilder: (context, index) {
+                            final ticket = _todaysTickets[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.casino,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  'Ticket ${ticket.id}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text('${ticket.event} - \$${ticket.netAmount.toStringAsFixed(2)}'),
+                                trailing: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.print, color: Colors.white),
+                                    onPressed: () => _printSingleTicket(ticket),
+                                    tooltip: 'Print this betting ticket',
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ),
             ],
           ],
         ),
       ),
+    ),
     );
   }
 }
